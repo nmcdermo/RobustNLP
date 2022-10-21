@@ -36,7 +36,7 @@ def get_adversarial_attacks():
 class BertCoreClass:
     def __init__(self, pretrained_dir_upstream, pretrained_dir_downstream, cuda_machine=5, max_len=128):
         self.bert_mlm = BertForMaskedLM.from_pretrained(pretrained_dir_upstream)
-        self.bert_classifier = BertForSequenceClassification.from_pretrained(pretrained_dir_downstream)
+        self.bert_classifier = BertForSequenceClassification.from_pretrained(pretrained_dir_downstream, num_labels=2)
         self.bert_tokenizer = BertTokenizerFast.from_pretrained(pretrained_dir_upstream)
 
         self.bert_classifier.eval()
@@ -62,7 +62,7 @@ class BertCoreClass:
     
         return labels
 
-    def mlm_compute_loss(self, inputs, labels):
+    def mlm_compute_loss(self, inputs, labels=None):
 
         with torch.cuda.device(self.cuda_machine), torch.no_grad():
             mlm_loss = self.bert_mlm(
@@ -74,23 +74,25 @@ class BertCoreClass:
         return mlm_loss
 
 
-    def classify(self, inputs):
-
+    def classify(self, inputs, label=None, num_classes=2):
+        print(inputs["input_ids"].shape)
         with torch.cuda.device(self.cuda_machine), torch.no_grad():
+            if label is not None:
+                label = torch.Tensor([label]).long()
             classification_loss = self.bert_classifier(
                     input_ids=inputs["input_ids"],
                     attention_mask=inputs["attention_mask"],
-                    token_type_ids=inputs["token_type_ids"]
+                    token_type_ids=inputs["token_type_ids"],
+                    labels=label
                     )
         return classification_loss
 
-    def mlm_best_candidates(self, mlm_loss, mask_pos):
+    def mlm_best_candidates(self, mlm_loss, mask_pos, num_tokens=50):
 
         to_pred = mlm_loss.logits[0][mask_pos]
 
-        pred_tokens = torch.argsort(to_pred, descending=True)[:50]
+        pred_tokens = torch.argsort(to_pred, descending=True)[:num_tokens]
     
-        word_candidates = self.bert_tokenizer.decode(pred_tokens)
-        return word_candidates
+        return pred_tokens
 
 
