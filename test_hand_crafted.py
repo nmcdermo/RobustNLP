@@ -31,10 +31,13 @@ if __name__ == "__main__":
     print("Actual Label: " + str(correct_label))
     word_candidates = predictor.mlm_best_candidates(mlm_loss, mask_pos)
     inputs["input_ids"][0][mask_pos] = word_candidates[0].item()
+    mlm_inputs = deepcopy(inputs)
+    labels_new = predictor.add_mask(mlm_inputs, mask_pos)
 
     classification_loss_new = predictor.classify(inputs, correct_label)
+    mlm_loss_new = predictor.mlm_compute_loss(mlm_inputs, labels_new)
 
-    print("New MLM Loss: " + str(round(mlm_loss.loss.item(), 3)))
+    print("New MLM Loss: " + str(round(mlm_loss_new.loss.item(), 3)))
     print("New classification Loss: " + str(round(classification_loss_new.loss.item(), 3)))
     print("New predicted Label: " + str(torch.argmax(classification_loss_new.logits).item()))
     print(classification_loss_new.logits)
