@@ -1,6 +1,8 @@
 from transformers import BertForMaskedLM, BertTokenizerFast, BertForSequenceClassification, AutoTokenizer, AutoModel
 from scipy.spatial.distance import cosine
+from string import punctuation
 from copy import deepcopy
+import nltk
 import torch
 import sys
 import os
@@ -35,7 +37,8 @@ def get_adversarial_attacks():
                         adv_labels.append(1)
     return adv_sentences, orig_sentences, adv_labels, orig_labels
 
-
+def is_punc(word):
+    return word in punctuation
 
 class SentenceEncoder():
     def __init__(self, sentence_dir):
@@ -122,57 +125,4 @@ class BertCoreClass:
         pred_tokens = torch.argsort(to_pred, descending=True)[:num_tokens]
     
         return pred_tokens
-
-
-class CoreDefense(BertCoreClass): 
-    def __init__(self, pretrained_dir_upstream, pretrained_dir_downstream, sentence_dir='sentence-transformers/all-MiniLM-L6-v2', cuda_machine=5, max_len=128):
-        super().__init__(pretrained_dir_upstream, pretrained_dir_downstream, sentence_dir, cuda_machine=5, max_len=128)
-
-    def get_all_losses(self, inputs):
-        self.mlm_losses = []
-        sentence_size = len(inputs["input_ids"][0])
-        for i in range(1, sentence_size-1):
-            adv_inputs = deepcopy(inputs)
-            mlm_labels = self.add_mask(adv_inputs, i)
-            mlm_loss = self.mlm_compute_loss(adv_inputs, mlm_labels)
-            self.mlm_losses.append((i, mlm_loss.loss.item(), mlm_loss.logits))
-        self.mlm_losses.sort(key = lambda x:x[1])
-
-    def matching_label(self, inputs, label):
-        classification_loss = self.classify(inputs, label)
-        print("Classification loss: ", classification_loss.loss)
-        chosen_label = torch.argmax(classification_loss.logits).item()
-        return chosen_label == label
-
-    def defend(self, sentence, desired_label):
-        self.orig_sentence = sentence
-        self.adv_sentence = ""
-        self.desired_label = desired_label
-
-class HighestLossDefense(CoreDefense):
-
-    def defend(self, sentence, desired_label):
-        super().defend(sentence, desired_label)
-        inputs = self.encode(sentence)
-        assert(not self.matching_label(inputs, self.desired_label))
-        self.get_all_losses(inputs)
-        token_to_replace = self.mlm_losses[-1][0]
-        old_loss = self.mlm_losses[-1][1]
-        print("Old MLM Loss", old_loss)
-        logits = self.mlm_losses[-1][2]
-        new_candidates = self.mlm_best_candidates(logits, token_to_replace)
-        print("Old Word: ", self.bert_tokenizer.decode(inputs.input_ids[0][token_to_replace]))
-        inputs["input_ids"][0][token_to_replace] = new_candidates[0].item()
-
-        print("New Word: ", self.bert_tokenizer.decode(inputs.input_ids[0][token_to_replace]))
-        final_mlm_inputs = deepcopy(inputs)
-        final_mlm_labels = self.add_mask(final_mlm_inputs, token_to_replace)
-        new_loss = self.mlm_compute_loss(final_mlm_inputs, final_mlm_labels)
-        print("New MLM Loss", new_loss.loss.item())
-        success = self.matching_label(inputs, self.desired_label)
-
-        new_sentence = self.decode(inputs)
-
-        sim = self.sentence_encoder.similarity(sentence, new_sentence)
-        return success, new_sentence, sim
 
