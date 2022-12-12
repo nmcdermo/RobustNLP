@@ -2,6 +2,7 @@ from transformers import BertForMaskedLM, BertTokenizerFast, BertForSequenceClas
 from scipy.spatial.distance import cosine
 from string import punctuation
 from copy import deepcopy
+import numpy as np
 import nltk
 import torch
 import sys
@@ -58,6 +59,49 @@ class SentenceEncoder():
 
         return semantic_sim
 
+class WordEncoder():
+    def __init__(self, word_dir, create_new=False):
+        self.idx2word = {}
+        self.word2idx = {}
+        with open(word_dir + "/counter-fitted-vectors.txt", 'r') as ifile:
+            for line in ifile:
+                word = line.split()[0]
+                if word not in self.idx2word:
+                    self.idx2word[len(self.idx2word)] = word
+                    self.word2idx[word] = len(self.idx2word) - 1
+
+        if not create_new:
+            # load pre-computed cosine similarity matrix if provided
+            print('Load pre-computed cosine similarity matrix') #from {}'.format(args.counter_fitting_cos_sim_path))
+            cos_sim = np.load(word_dir + "/cos_sim_counter_fitting.npy")
+            self.cos_sim = cos_sim
+        else:
+            # calculate the cosine similarity matrix
+            print('Start computing the cosine similarity matrix!')
+            embeddings = []
+            with open(word_dir, 'r') as ifile:
+                for line in ifile:
+                    embedding = [float(num) for num in line.strip().split()[1:]]
+                    embeddings.append(embedding)
+            embeddings = np.array(embeddings)
+            product = np.dot(embeddings, embeddings.T)
+            norm = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            cos_sim = product / np.dot(norm, norm.T)
+            self.cos_sim = cos_sim
+        
+        self.sim_mean = np.mean(self.cos_sim)
+        self.sim_std = np.std(self.cos_sim)
+
+    def similarity(self, w1, w2):
+        i1 = self.word2idx[w1]
+        i2 = self.word2idx[w2]
+        return self.cos_sim[i1][i2]
+
+    def similarity_threshold(self, w1, w2, alpha_score):
+        sim_score = self.similarity(w1, w2)
+        print(sim_score, self.sim_mean, alpha_score, self.sim_std)
+        return sim_score > self.sim_mean + (alpha_score*self.sim_std)
+        
 
 
 class BertCoreClass:
