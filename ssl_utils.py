@@ -1,4 +1,4 @@
-from transformers import BertForMaskedLM, BertTokenizerFast, BertForSequenceClassification, AutoTokenizer, AutoModel
+from transformers import BertForMaskedLM, BertForSequenceClassification, AutoTokenizer, AutoModelForSequenceClassification, AutoModel
 from scipy.spatial.distance import cosine
 from string import punctuation
 from copy import deepcopy
@@ -99,16 +99,15 @@ class WordEncoder():
 
     def similarity_threshold(self, w1, w2, alpha_score):
         sim_score = self.similarity(w1, w2)
-        print(sim_score, self.sim_mean, alpha_score, self.sim_std)
         return sim_score > self.sim_mean + (alpha_score*self.sim_std)
         
 
 
 class BertCoreClass:
-    def __init__(self, pretrained_dir_upstream, pretrained_dir_downstream, sentence_dir='sentence-transformers/all-MiniLM-L6-v2', cuda_machine=5, max_len=128):
+    def __init__(self, pretrained_dir_upstream, pretrained_dir_downstream, sentence_dir='sentence-transformers/all-MiniLM-L6-v2', cuda_machine=5, max_len=256):
         self.bert_mlm = BertForMaskedLM.from_pretrained(pretrained_dir_upstream)
-        self.bert_classifier = BertForSequenceClassification.from_pretrained(pretrained_dir_downstream, num_labels=2)
-        self.bert_tokenizer = BertTokenizerFast.from_pretrained(pretrained_dir_upstream)
+        self.bert_classifier = AutoModelForSequenceClassification.from_pretrained(pretrained_dir_downstream)
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(pretrained_dir_upstream, fast=True)
 
         self.bert_classifier.eval()
         self.bert_mlm.eval()
@@ -120,9 +119,10 @@ class BertCoreClass:
 
     def encode(self,text):
         inputs = self.bert_tokenizer.encode_plus(
-                                                text,  return_tensors="pt", add_special_tokens = True, truncation=True, 
-                                                padding=True, return_attention_mask = True,  
-                                                max_length=self.max_len
+                                                text,  return_tensors="pt", add_special_tokens = True, #truncation=True, 
+                                                #padding=True, 
+                                                return_attention_mask = True,  
+                                                max_length=512#self.max_len
                                                 )
         return inputs
 

@@ -11,14 +11,16 @@ if __name__ == "__main__":
     
     adv_sentences, orig_sentences, adv_labels, orig_labels = get_adversarial_attacks()
 
-    pretrained_dir_finetuned = os.path.join(os.pardir, "TextFooler","BERT","yelp2")
+    #pretrained_dir_finetuned = os.path.join(os.pardir, "TextFooler","BERT","yelp2")
     pretrained_dir_base = "bert-base-uncased"
+    pretrained_dir_finetuned = "textattack/bert-base-uncased-yelp-polarity"
     defender = WordSimilarityDefense(pretrained_dir_base, pretrained_dir_finetuned)
     #inc = defender.encode(sentence)
     #dec = defender.bert_tokenizer.decode(inc.input_ids[0], skip_special_tokens=True)
     #print(dec)
 
-    defender.defend(sentence, correct_label, threshold_sigma=2, total_replacements=3)
+    suc, new_sentence, sim = defender.defend(sentence, correct_label, threshold_sigma=2, total_replacements=1)
+    print(suc, new_sentence, sim)
     """
     num_successes = 0
     tot_difference = 0
